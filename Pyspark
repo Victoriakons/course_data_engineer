@@ -1,0 +1,56 @@
+from pyspark.sql import SparkSession
+from pyspark import SparkContext, SparkConf
+import pyspark.sql.types as T
+from pyspark.sql.functions import count
+from pyspark.sql import Window
+from sqlalchemy import asc
+import pyspark.sql.functions as F
+
+
+spark = SparkSession.builder.master("local") .\
+appName("Word Count") .\
+config("spark.driver.bindAddress", "localhost") .\
+config("spark.ui.port","4040") .\
+getOrCreate()
+
+structure = T.StructType ([T.StructField("id", T.StringType(),True), 
+                           T.StructField("timestamp",T.LongType(),True),
+                           T.StructField("type",T.StringType(),True),
+                           T.StructField("page_id",T.IntegerType(),True),
+                           T.StructField("tag",T.StringType(),True),
+                           T.StructField("sign",T.BooleanType(),True)])
+
+
+data = [(1234,1671202383,'click',111,'politics','True'),
+        (1324,1668437583,'scroll',112,'sport','True'),
+        (1235,1663167183,'visit',113,'med','False'),
+        (1567,1655218383,'move',114,'music','False'),
+        (5544,1647269583,'visit',115,'politics','True'),
+        (5623,1624114383,'scroll',116,'sport','False'),
+        (9845,1624632783,'move',117,'sport','True'),
+        (9845,1624632783,'visit',117,'sport','True')]
+
+
+columns = ["id","timestamp","type","page_id", "tag", "sign"]
+df = spark.createDataFrame(data=data, schema=columns)
+
+df = df.select(*(i for i in df.columns if i != "timestamp"),
+          F.from_unixtime("timestamp").alias("event_time")).show()
+
+df.groupby("id").count().orderBy("count",ascending = False).show()
+
+
+all_visitors = df.count()
+print(all_visitors)
+
+
+df_lk = df.where(df.sign == 'True')
+have_lk = df_lk.count()
+print(have_lk)
+
+result = have_lk * 100 / all_visitors
+print(result)
+
+
+
+df.withColumn("new", F.floor(F.hour("event_time") / F.lit(4))).show()
